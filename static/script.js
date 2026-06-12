@@ -1,589 +1,205 @@
-// Premium Audio Chat Frontend
-// Built by Satyakam Swami
+// Production-Ready Frontend Logic built by Satyakam Swami - Enhanced Edition
 
-// ======================================================
-// CLIENT ID
-// ======================================================
+// 1. Generate or retrieve a persistent unique client ID
+let myId = localStorage.getItem('chat_uuid') || crypto.randomUUID();
+localStorage.setItem('chat_uuid', myId);
 
-let myId = localStorage.getItem("chat_uuid");
-
-if (!myId) {
-    myId = crypto.randomUUID();
-    localStorage.setItem("chat_uuid", myId);
-}
-
-// ======================================================
-// WEBSOCKET
-// ======================================================
-
-const wsProtocol =
-    window.location.protocol === "https:"
-        ? "wss"
-        : "ws";
-
-const ws = new WebSocket(
-    `${wsProtocol}://${window.location.host}/ws/${myId}`
-);
-
-// ======================================================
-// GLOBALS
-// ======================================================
+// 2. Establish Secure/Standard WebSocket Communication Pipeline
+const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+let ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws/${myId}`);
 
 let peerConnection = null;
 let localStream = null;
 let currentPartnerId = null;
 let isMuted = false;
-
-let signalingQueue = [];
-
-let timerInterval = null;
-let callSeconds = 0;
-
-let speakerEnabled = true;
-
-// ======================================================
-// RTC CONFIG
-// ======================================================
+let signalingQueue = []; 
 
 const rtcConfig = {
-    iceServers: [
-        {
-            urls: [
-                "stun:stun.l.google.com:19302",
-                "stun:stun1.l.google.com:19302"
-            ]
-        }
-    ]
+    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
 };
 
-// ======================================================
-// UI ELEMENTS
-// ======================================================
+// UI Element Mapping
+const statusText = document.getElementById("status-text");
+const remoteAudio = document.getElementById("remote-audio");
+const btnNew = document.getElementById("btn-new");
+const btnReconnect = document.getElementById("btn-reconnect");
+const callControls = document.getElementById("call-controls");
+const mainControls = document.getElementById("main-controls");
+const btnMute = document.getElementById("btn-mute");
+const btnDisconnect = document.getElementById("btn-disconnect");
+const pulseRing = document.getElementById("pulse-ring");
 
-const statusText =
-    document.getElementById("status-text");
-
-const remoteAudio =
-    document.getElementById("remote-audio");
-
-const btnNew =
-    document.getElementById("btn-new");
-
-const btnReconnect =
-    document.getElementById("btn-reconnect");
-
-const btnMute =
-    document.getElementById("btn-mute");
-
-const btnDisconnect =
-    document.getElementById("btn-disconnect");
-
-const btnSpeaker =
-    document.getElementById("btn-speaker");
-
-const callControls =
-    document.getElementById("call-controls");
-
-const timerDisplay =
-    document.getElementById("call-timer");
-
-// ======================================================
-// TIMER
-// ======================================================
-
-function startTimer() {
-
-    clearInterval(timerInterval);
-
-    callSeconds = 0;
-
-    if (timerDisplay) {
-        timerDisplay.style.display = "block";
-    }
-
-    timerInterval = setInterval(() => {
-
-        callSeconds++;
-
-        const mins =
-            Math.floor(callSeconds / 60);
-
-        const secs =
-            callSeconds % 60;
-
-        if (timerDisplay) {
-            timerDisplay.innerText =
-                `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-        }
-
-    }, 1000);
-}
-
-function stopTimer() {
-
-    clearInterval(timerInterval);
-
-    if (timerDisplay) {
-        timerDisplay.style.display = "none";
+// Helper function to update UI seamlessly
+function updateUI(status, showCallControls, animatePulse) {
+    statusText.innerHTML = status;
+    callControls.style.display = showCallControls ? "block" : "none";
+    mainControls.style.display = showCallControls ? "none" : "block";
+    
+    if (animatePulse) {
+        pulseRing.classList.add("active");
+    } else {
+        pulseRing.classList.remove("active");
     }
 }
 
-// ======================================================
-// MICROPHONE ACCESS
-// ======================================================
-
+// 3. User Gesture Microphone Acquisition
 async function ensureMicrophoneAccess() {
-
-    if (localStream) {
-        return true;
-    }
+    if (localStream) return true; 
 
     try {
-
-        statusText.innerText =
-            "Status: Requesting Microphone...";
-
-        localStream =
-            await navigator.mediaDevices.getUserMedia({
-                audio: true,
-                video: false
-            });
-
+        updateUI("<i class='fa-solid fa-spinner fa-spin'></i> Requesting Microphone...", false, false);
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         return true;
-
     } catch (error) {
-
-        console.error(error);
-
-        alert(
-            "Microphone permission is required."
-        );
-
-        statusText.innerText =
-            "Status: Disconnected";
-
+        console.error("Microphone Access Error:", error);
+        alert("Microphone access is mandatory. Please check browser permissions.");
+        updateUI("Disconnected", false, false);
         return false;
     }
 }
 
-// ======================================================
-// WEBSOCKET EVENTS
-// ======================================================
-
+// 4. Inbound WebSocket Message Routing System
 ws.onmessage = async (event) => {
+    const data = JSON.parse(event.data);
 
-    const data =
-        JSON.parse(event.data);
-
-    switch (data.type) {
-
+    switch(data.type) {
         case "waiting":
-
-            statusText.innerText =
-                "Status: Waiting for new caller...";
-
+            updateUI("<i class='fa-solid fa-satellite-dish fa-fade'></i> Searching for partner...", false, true);
             break;
-
         case "waiting_reconnect":
-
-            statusText.innerText =
-                "Status: Waiting for previous caller...";
-
+            updateUI("<i class='fa-solid fa-clock-rotate-left fa-spin'></i> Awaiting previous partner...", false, true);
             break;
-
         case "error":
-
             alert(data.message);
-
-            statusText.innerText =
-                "Status: Disconnected";
-
+            updateUI("Disconnected", false, false);
             break;
-
         case "matched":
-
-            statusText.innerText =
-                "Status: Connected";
-
-            currentPartnerId =
-                data.partner_id;
-
-            startTimer();
-
-            await startCall(
-                data.initiator
-            );
-
+            updateUI("<i class='fa-solid fa-link'></i> Connected!", true, true);
+            currentPartnerId = data.partner_id;
+            await startCall(data.initiator);
             break;
-
         case "offer":
         case "answer":
         case "ice_candidate":
-
             if (!peerConnection) {
-
                 signalingQueue.push(data);
-
             } else {
-
-                await processSignalingMessage(
-                    data
-                );
+                await processSignalingMessage(data);
             }
-
             break;
-
         case "partner_left":
-
-            endCallLocally(
-                "Partner disconnected."
-            );
-
+            endCallLocally("Partner disconnected.");
             break;
     }
 };
-
-ws.onclose = () => {
-
-    endCallLocally(
-        "Server connection lost."
-    );
-};
-
-ws.onerror = () => {
-
-    console.log(
-        "WebSocket Error"
-    );
-};
-
-// ======================================================
-// SIGNALING
-// ======================================================
 
 async function processSignalingMessage(data) {
-
-    if (data.type === "offer") {
-        await handleOffer(data);
-    }
-
-    if (data.type === "answer") {
-        await handleAnswer(data);
-    }
-
-    if (data.type === "ice_candidate") {
-        await handleICE(data);
-    }
+    if (data.type === "offer") await handleOffer(data);
+    if (data.type === "answer") await handleAnswer(data);
+    if (data.type === "ice_candidate") await handleNewICECandidateMsg(data);
 }
 
-// ======================================================
-// WEBRTC
-// ======================================================
-
+// 5. Asynchronous WebRTC Connection Lifecycle
 async function startCall(isInitiator) {
+    peerConnection = new RTCPeerConnection(rtcConfig);
 
-    callControls.style.display =
-        "block";
+    // CRITICAL IMPROVEMENT: Monitor connection drops
+    peerConnection.oniceconnectionstatechange = () => {
+        if (peerConnection.iceConnectionState === "disconnected" || 
+            peerConnection.iceConnectionState === "failed") {
+            endCallLocally("Connection lost.");
+        }
+    };
 
-    peerConnection =
-        new RTCPeerConnection(
-            rtcConfig
-        );
+    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-    peerConnection.onconnectionstatechange =
-        () => {
+    peerConnection.ontrack = (event) => {
+        remoteAudio.srcObject = event.streams[0];
+        remoteAudio.play().catch(e => console.log("Audio block:", e));
+    };
 
-            const state =
-                peerConnection.connectionState;
-
-            console.log(
-                "Connection State:",
-                state
-            );
-
-            if (
-                state === "failed" ||
-                state === "disconnected" ||
-                state === "closed"
-            ) {
-
-                endCallLocally(
-                    "Connection lost."
-                );
-            }
-        };
-
-    localStream
-        .getTracks()
-        .forEach(track => {
-
-            peerConnection.addTrack(
-                track,
-                localStream
-            );
-
-        });
-
-    peerConnection.ontrack =
-        (event) => {
-
-            remoteAudio.srcObject =
-                event.streams[0];
-
-            remoteAudio
-                .play()
-                .catch(console.error);
-        };
-
-    peerConnection.onicecandidate =
-        (event) => {
-
-            if (
-                event.candidate &&
-                currentPartnerId
-            ) {
-
-                ws.send(
-                    JSON.stringify({
-                        type: "ice_candidate",
-                        target: currentPartnerId,
-                        candidate: event.candidate
-                    })
-                );
-            }
-        };
+    peerConnection.onicecandidate = (event) => {
+        if (event.candidate && currentPartnerId) {
+            ws.send(JSON.stringify({
+                type: "ice_candidate", target: currentPartnerId, candidate: event.candidate
+            }));
+        }
+    };
 
     if (isInitiator) {
-
-        const offer =
-            await peerConnection.createOffer();
-
-        await peerConnection.setLocalDescription(
-            offer
-        );
-
-        ws.send(
-            JSON.stringify({
-                type: "offer",
-                target: currentPartnerId,
-                sdp: offer
-            })
-        );
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        ws.send(JSON.stringify({ type: "offer", target: currentPartnerId, sdp: offer }));
     }
 
-    while (
-        signalingQueue.length > 0
-    ) {
-
-        const msg =
-            signalingQueue.shift();
-
-        await processSignalingMessage(
-            msg
-        );
+    while (signalingQueue.length > 0) {
+        const msg = signalingQueue.shift();
+        await processSignalingMessage(msg);
     }
 }
-
-// ======================================================
-// OFFER
-// ======================================================
 
 async function handleOffer(data) {
-
-    await peerConnection.setRemoteDescription(
-        new RTCSessionDescription(
-            data.sdp
-        )
-    );
-
-    const answer =
-        await peerConnection.createAnswer();
-
-    await peerConnection.setLocalDescription(
-        answer
-    );
-
-    ws.send(
-        JSON.stringify({
-            type: "answer",
-            target: currentPartnerId,
-            sdp: answer
-        })
-    );
+    if (!peerConnection) return;
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    ws.send(JSON.stringify({ type: "answer", target: currentPartnerId, sdp: answer }));
 }
-
-// ======================================================
-// ANSWER
-// ======================================================
 
 async function handleAnswer(data) {
-
-    await peerConnection.setRemoteDescription(
-        new RTCSessionDescription(
-            data.sdp
-        )
-    );
+    if (!peerConnection) return;
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
 }
 
-// ======================================================
-// ICE
-// ======================================================
-
-async function handleICE(data) {
-
+async function handleNewICECandidateMsg(data) {
+    if (!peerConnection) return;
     try {
-
-        if (
-            data.candidate &&
-            peerConnection
-        ) {
-
-            await peerConnection.addIceCandidate(
-                new RTCIceCandidate(
-                    data.candidate
-                )
-            );
-        }
-
-    } catch (error) {
-
-        console.error(
-            "ICE Error:",
-            error
-        );
+        await peerConnection.addIceCandidate(data.candidate);
+    } catch (e) {
+        console.error("ICE Error:", e);
     }
 }
 
-// ======================================================
-// BUTTONS
-// ======================================================
-
+// 6. Action Button Interactive Listeners
 btnNew.onclick = async () => {
-
-    if (
-        await ensureMicrophoneAccess()
-    ) {
-
-        cleanupBeforeSearch();
-
-        ws.send(
-            JSON.stringify({
-                type: "connect_new"
-            })
-        );
+    if (await ensureMicrophoneAccess()) {
+        resetConnection();
+        ws.send(JSON.stringify({ type: "connect_new" }));
     }
 };
 
 btnReconnect.onclick = async () => {
-
-    if (
-        await ensureMicrophoneAccess()
-    ) {
-
-        cleanupBeforeSearch();
-
-        ws.send(
-            JSON.stringify({
-                type: "reconnect"
-            })
-        );
+    if (await ensureMicrophoneAccess()) {
+        resetConnection();
+        ws.send(JSON.stringify({ type: "reconnect" }));
     }
 };
 
 btnMute.onclick = () => {
-
-    if (!localStream) return;
-
-    isMuted = !isMuted;
-
-    localStream
-        .getAudioTracks()[0]
-        .enabled = !isMuted;
-
-    btnMute.innerText =
-        isMuted
-            ? "Unmute Mic"
-            : "Mute Mic";
-};
-
-btnSpeaker.onclick = () => {
-
-    speakerEnabled =
-        !speakerEnabled;
-
-    remoteAudio.muted =
-        !speakerEnabled;
-
-    btnSpeaker.innerText =
-        speakerEnabled
-            ? "Speaker"
-            : "Speaker Off";
+    if (localStream) {
+        isMuted = !isMuted;
+        localStream.getAudioTracks()[0].enabled = !isMuted;
+        btnMute.innerHTML = isMuted ? "<i class='fa-solid fa-microphone-slash'></i> Unmute" : "<i class='fa-solid fa-microphone'></i> Mute";
+        btnMute.className = isMuted ? "btn-secondary" : "btn-warning";
+    }
 };
 
 btnDisconnect.onclick = () => {
-
-    if (
-        ws.readyState ===
-        WebSocket.OPEN
-    ) {
-
-        ws.send(
-            JSON.stringify({
-                type: "hangup"
-            })
-        );
-    }
-
-    endCallLocally(
-        "You disconnected."
-    );
+    ws.send(JSON.stringify({ type: "hangup" }));
+    endCallLocally("You disconnected.");
 };
 
-// ======================================================
-// CLEANUP
-// ======================================================
-
-function cleanupBeforeSearch() {
-
-    stopTimer();
-
+function resetConnection() {
     if (peerConnection) {
-
         peerConnection.close();
-
         peerConnection = null;
     }
-
     signalingQueue = [];
-
     remoteAudio.srcObject = null;
-
-    currentPartnerId = null;
-
-    callControls.style.display =
-        "none";
 }
 
 function endCallLocally(message) {
-
-    stopTimer();
-
-    if (peerConnection) {
-
-        peerConnection.close();
-
-        peerConnection = null;
-    }
-
+    resetConnection();
     currentPartnerId = null;
-
-    remoteAudio.srcObject = null;
-
-    signalingQueue = [];
-
-    callControls.style.display =
-        "none";
-
-    statusText.innerText =
-        "Status: " + message;
+    updateUI(message, false, false);
 }
