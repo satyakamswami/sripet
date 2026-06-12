@@ -1,4 +1,4 @@
-// Satyakam Swami - WebRTC Frontend Logic
+// Satyakam Swami - Final WebRTC Frontend Logic
 
 // 1. Generate or retrieve UUID for the user
 let myId = localStorage.getItem('chat_uuid');
@@ -11,12 +11,10 @@ if (!myId) {
 const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
 const ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws/${myId}`);
 
-let peerConnection;
-let localStream;
+let peerConnection = null;
+let localStream = null;
 let currentPartnerId = null;
 let isMuted = false;
-
-// FIX: A queue to hold messages if they arrive before the mic is ready
 let signalingQueue = []; 
 
 const rtcConfig = {
@@ -32,7 +30,23 @@ const callControls = document.getElementById("call-controls");
 const btnMute = document.getElementById("btn-mute");
 const btnDisconnect = document.getElementById("btn-disconnect");
 
-// 3. WebSocket Message Handling
+// 3. Microphone Access (Must happen before server communication)
+async function ensureMicrophoneAccess() {
+    if (localStream) return true; 
+
+    try {
+        statusText.innerText = "Status: Requesting Microphone...";
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        return true;
+    } catch (error) {
+        console.error("Microphone Error:", error);
+        alert("Microphone access is required to chat. Please check your browser permissions.");
+        statusText.innerText = "Status: Disconnected";
+        return false;
+    }
+}
+
+// 4. WebSocket Message Handling
 ws.onmessage = async (event) => {
     const data = JSON.parse(event.data);
 
@@ -55,9 +69,8 @@ ws.onmessage = async (event) => {
         case "offer":
         case "answer":
         case "ice_candidate":
-            // FIX: If the connection isn't ready yet, queue the message!
+            // Queue messages if the connection isn't fully ready
             if (!peerConnection) {
-                console.log("Mic not ready yet, queuing message:", data.type);
                 signalingQueue.push(data);
             } else {
                 await processSignalingMessage(data);
@@ -69,33 +82,28 @@ ws.onmessage = async (event) => {
     }
 };
 
-// Helper function to process the WebRTC messages
 async function processSignalingMessage(data) {
     if (data.type === "offer") await handleOffer(data);
     if (data.type === "answer") await handleAnswer(data);
     if (data.type === "ice_candidate") await handleNewICECandidateMsg(data);
 }
 
-// 4. WebRTC Call Logic
+// 5. WebRTC Call Logic
 async function startCall(isInitiator) {
     callControls.style.display = "block";
     
-    // Get microphone access (This is the step that takes time!)
-    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    
     peerConnection = new RTCPeerConnection(rtcConfig);
 
-    // Add our audio to the connection
+    // Attach local audio to the connection
     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-    // When we get their audio, play it
+    // Handle incoming remote audio
     peerConnection.ontrack = (event) => {
         remoteAudio.srcObject = event.streams[0];
-        // FIX: Force the browser to play the audio to bypass Autoplay blocks
         remoteAudio.play().catch(e => console.log("Audio play blocked by browser:", e));
     };
 
-    // Send routing info (ICE) to the other person
+    // Send ICE candidates to partner
     peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
             ws.send(JSON.stringify({
@@ -106,7 +114,7 @@ async function startCall(isInitiator) {
         }
     };
 
-    // If we are the ones who were in the queue first, we send the Offer
+    // Initiator creates the Offer
     if (isInitiator) {
         const offer = await peerConnection.createOffer();
         await peerConnection.setLocalDescription(offer);
@@ -117,10 +125,9 @@ async function startCall(isInitiator) {
         }));
     }
 
-    // FIX: Now that our mic is ON and peerConnection is ready, process any queued messages!
+    // Process any queued signaling messages
     while (signalingQueue.length > 0) {
         const msg = signalingQueue.shift();
-        console.log("Processing queued message:", msg.type);
         await processSignalingMessage(msg);
     }
 }
@@ -149,13 +156,17 @@ async function handleNewICECandidateMsg(data) {
     }
 }
 
-// 5. Button Listeners
-btnNew.onclick = () => {
-    ws.send(JSON.stringify({ type: "connect_new" }));
+// 6. Button Listeners
+btnNew.onclick = async () => {
+    if (await ensureMicrophoneAccess()) {
+        ws.send(JSON.stringify({ type: "connect_new" }));
+    }
 };
 
-btnReconnect.onclick = () => {
-    ws.send(JSON.stringify({ type: "reconnect" }));
+btnReconnect.onclick = async () => {
+    if (await ensureMicrophoneAccess()) {
+        ws.send(JSON.stringify({ type: "reconnect" }));
+    }
 };
 
 btnMute.onclick = () => {
@@ -176,12 +187,13 @@ function endCallLocally(message) {
         peerConnection.close();
         peerConnection = null;
     }
-    if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-    }
     currentPartnerId = null;
     callControls.style.display = "none";
     statusText.innerText = "Status: " + message;
     remoteAudio.srcObject = null;
-    signalingQueue = []; // Clear the queue on disconnect
+    signalingQueue = [];
+    
+    // Note: We deliberately do NOT stop the localStream tracks here. 
+    // This allows the user to click "Connect to New Caller" instantly 
+    // without the browser re-prompting for permission every single time.
 }
