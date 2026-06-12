@@ -1,64 +1,103 @@
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-    font-family: Arial, sans-serif;
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+    font-family:Arial,sans-serif;
 }
 
-body {
-    background-color: #f4f4f9;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
+body{
+    background:#f4f6fb;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    min-height:100vh;
+    padding:20px;
 }
 
-.container {
-    background: white;
-    padding: 30px;
-    border-radius: 10px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    text-align: center;
-    width: 350px;
+.container{
+    width:100%;
+    max-width:420px;
+
+    background:white;
+
+    border-radius:18px;
+
+    padding:30px;
+
+    text-align:center;
+
+    box-shadow:
+        0 10px 30px rgba(0,0,0,.08);
 }
 
-h1 {
-    font-size: 22px;
-    margin-bottom: 10px;
-    color: #333;
+h1{
+    margin-bottom:15px;
+    color:#222;
 }
 
-#status-text {
-    margin-bottom: 20px;
-    color: #666;
-    font-weight: bold;
+#status-text{
+    font-weight:bold;
+    color:#555;
+    margin-bottom:15px;
 }
 
-button {
-    width: 100%;
-    padding: 10px;
-    margin: 5px 0;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-    font-size: 16px;
-    background-color: #007bff;
-    color: white;
-    transition: 0.3s;
+#call-timer{
+    font-size:24px;
+    font-weight:bold;
+    color:#007bff;
+    margin-bottom:20px;
 }
 
-button:hover {
-    background-color: #0056b3;
+.controls,
+.call-controls{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
 }
 
-#btn-disconnect {
-    background-color: #dc3545;
+button{
+    border:none;
+
+    padding:14px;
+
+    border-radius:10px;
+
+    font-size:15px;
+
+    cursor:pointer;
+
+    transition:.2s;
 }
 
-#btn-disconnect:hover {
-    background-color: #a71d2a;
+button:hover{
+    transform:translateY(-1px);
 }
 
-.controls, .call-controls {
-    margin-top: 15px;
+#btn-new{
+    background:#007bff;
+    color:white;
+}
+
+#btn-reconnect{
+    background:#28a745;
+    color:white;
+}
+
+#btn-mute{
+    background:#6c757d;
+    color:white;
+}
+
+#btn-speaker{
+    background:#17a2b8;
+    color:white;
+}
+
+#btn-disconnect{
+    background:#dc3545;
+    color:white;
+}
+
+audio{
+    display:none;
 }
