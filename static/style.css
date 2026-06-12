@@ -1,103 +1,121 @@
-*{
-    margin:0;
-    padding:0;
-    box-sizing:border-box;
-    font-family:Arial,sans-serif;
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', sans-serif;
 }
 
-body{
-    background:#f4f6fb;
-    display:flex;
-    justify-content:center;
-    align-items:center;
-    min-height:100vh;
-    padding:20px;
+body {
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    color: #fff;
 }
 
-.container{
-    width:100%;
-    max-width:420px;
-
-    background:white;
-
-    border-radius:18px;
-
-    padding:30px;
-
-    text-align:center;
-
-    box-shadow:
-        0 10px 30px rgba(0,0,0,.08);
+.container {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 40px 30px;
+    border-radius: 20px;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    text-align: center;
+    width: 380px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
-h1{
-    margin-bottom:15px;
-    color:#222;
+/* Avatar & Pulsing Animation */
+.avatar-container {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
 }
 
-#status-text{
-    font-weight:bold;
-    color:#555;
-    margin-bottom:15px;
+.avatar {
+    width: 80px;
+    height: 80px;
+    background: linear-gradient(135deg, #00c6ff, #0072ff);
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 32px;
+    z-index: 2;
+    box-shadow: 0 4px 15px rgba(0, 114, 255, 0.4);
 }
 
-#call-timer{
-    font-size:24px;
-    font-weight:bold;
-    color:#007bff;
-    margin-bottom:20px;
+.pulse-ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    background: #0072ff;
+    border-radius: 50%;
+    z-index: 1;
+    opacity: 0;
 }
 
-.controls,
-.call-controls{
-    display:flex;
-    flex-direction:column;
-    gap:10px;
+.pulse-ring.active {
+    animation: pulse 1.5s infinite ease-out;
 }
 
-button{
-    border:none;
-
-    padding:14px;
-
-    border-radius:10px;
-
-    font-size:15px;
-
-    cursor:pointer;
-
-    transition:.2s;
+@keyframes pulse {
+    0% { transform: scale(0.8); opacity: 0.8; }
+    100% { transform: scale(1.8); opacity: 0; }
 }
 
-button:hover{
-    transform:translateY(-1px);
+h1 {
+    font-size: 24px;
+    font-weight: 600;
+    margin-bottom: 10px;
 }
 
-#btn-new{
-    background:#007bff;
-    color:white;
+.status-badge {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 14px;
+    margin-bottom: 25px;
+    color: #e0e0e0;
 }
 
-#btn-reconnect{
-    background:#28a745;
-    color:white;
+/* Modern Buttons */
+button {
+    width: 100%;
+    padding: 14px;
+    margin: 8px 0;
+    border: none;
+    border-radius: 12px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
 }
 
-#btn-mute{
-    background:#6c757d;
-    color:white;
-}
+button:active { transform: scale(0.98); }
 
-#btn-speaker{
-    background:#17a2b8;
-    color:white;
-}
+.btn-primary { background: #0072ff; color: white; }
+.btn-primary:hover { background: #005ce6; box-shadow: 0 4px 15px rgba(0, 114, 255, 0.4); }
 
-#btn-disconnect{
-    background:#dc3545;
-    color:white;
-}
+.btn-secondary { background: rgba(255, 255, 255, 0.1); color: white; border: 1px solid rgba(255, 255, 255, 0.2); }
+.btn-secondary:hover { background: rgba(255, 255, 255, 0.2); }
 
-audio{
-    display:none;
-}
+.btn-warning { background: #f39c12; color: white; }
+.btn-warning:hover { background: #d68910; }
+
+.btn-danger { background: #e74c3c; color: white; }
+.btn-danger:hover { background: #c0392b; box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4); }
+
+.controls, .call-controls { width: 100%; }
