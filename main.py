@@ -46,7 +46,6 @@ manager = ConnectionManager()
 
 @app.get("/")
 async def get(request: Request):
-    # FIXED: Using explicit keyword arguments for the template response
     return templates.TemplateResponse(request=request, name="index.html")
 
 @app.websocket("/ws/{client_id}")
@@ -70,7 +69,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     manager.history[client_id] = partner_id
                     manager.history[partner_id] = client_id
 
-                    # Tell both clients they matched. client_id will be the "caller" (creates offer)
+                    # Tell both clients they matched. client_id will be the "caller"
                     await manager.send_message(client_id, {"type": "matched", "partner_id": partner_id, "initiator": True})
                     await manager.send_message(partner_id, {"type": "matched", "partner_id": client_id, "initiator": False})
                 else:
@@ -97,7 +96,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     manager.reconnect_queue.append(client_id)
                     await manager.send_message(client_id, {"type": "waiting_reconnect"})
 
-            # WebRTC Signaling routing (Offer, Answer, ICE Candidates)
+            # WebRTC Signaling routing
             elif msg_type in ["offer", "answer", "ice_candidate"]:
                 target_id = message.get("target")
                 if target_id:
