@@ -3,64 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stranger Audio Chat</title>
-
-    <link rel="stylesheet" href="/static/style.css">
+    <title>Audio Chat | Satyakam Swami</title>
+    <link rel="stylesheet" href="../static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
-
     <div class="container">
-
-        <h1>🎧 Stranger Audio Chat</h1>
-
-        <p id="status-text">
-            Status: Disconnected
-        </p>
-
-        <p id="call-timer" style="display:none;">
-            00:00
-        </p>
-
-        <audio
-            id="remote-audio"
-            autoplay
-            playsinline>
-        </audio>
-
-        <div class="controls">
-
-            <button id="btn-new">
-                Connect New Caller
-            </button>
-
-            <button id="btn-reconnect">
-                Reconnect To Last Caller
-            </button>
-
+        <div class="avatar-container">
+            <div id="pulse-ring" class="pulse-ring"></div>
+            <div class="avatar">
+                <i class="fa-solid fa-microphone-lines"></i>
+            </div>
         </div>
 
-        <div
-            id="call-controls"
-            class="call-controls"
-            style="display:none;">
+        <h1>Stranger Audio Chat</h1>
+        <p id="status-text" class="status-badge">Status: Disconnected</p>
 
-            <button id="btn-mute">
-                Mute Mic
-            </button>
+        <audio id="remote-audio" autoplay playsinline></audio>
 
-            <button id="btn-speaker">
-                Speaker
-            </button>
-
-            <button id="btn-disconnect">
-                End Call
-            </button>
-
+        <div class="controls" id="main-controls">
+            <button id="btn-new" class="btn-primary"><i class="fa-solid fa-shuffle"></i> Find Partner</button>
+            <button id="btn-reconnect" class="btn-secondary"><i class="fa-solid fa-clock-rotate-left"></i> Reconnect</button>
         </div>
 
+        <div class="call-controls" id="call-controls" style="display: none;">
+            <button id="btn-mute" class="btn-warning"><i class="fa-solid fa-microphone"></i> Mute</button>
+            <button id="btn-disconnect" class="btn-danger"><i class="fa-solid fa-phone-slash"></i> Disconnect</button>
+        </div>
     </div>
 
-    <script src="/static/script.js"></script>
-
+    <script src="../static/script.js"></script>
 </body>
 </html>
