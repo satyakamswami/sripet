@@ -1,216 +1,589 @@
-// Production-Ready Frontend Logic built by Satyakam Swami
+// Premium Audio Chat Frontend
+// Built by Satyakam Swami
 
-// 1. Generate or retrieve a persistent unique client ID
-let myId = localStorage.getItem('chat_uuid');
+// ======================================================
+// CLIENT ID
+// ======================================================
+
+let myId = localStorage.getItem("chat_uuid");
+
 if (!myId) {
     myId = crypto.randomUUID();
-    localStorage.setItem('chat_uuid', myId);
+    localStorage.setItem("chat_uuid", myId);
 }
 
-// 2. Establish Secure/Standard WebSocket Communication Pipeline
-const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
-const ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws/${myId}`);
+// ======================================================
+// WEBSOCKET
+// ======================================================
+
+const wsProtocol =
+    window.location.protocol === "https:"
+        ? "wss"
+        : "ws";
+
+const ws = new WebSocket(
+    `${wsProtocol}://${window.location.host}/ws/${myId}`
+);
+
+// ======================================================
+// GLOBALS
+// ======================================================
 
 let peerConnection = null;
 let localStream = null;
 let currentPartnerId = null;
 let isMuted = false;
-let signalingQueue = []; // Queue processing structure for incoming signaling data
+
+let signalingQueue = [];
+
+let timerInterval = null;
+let callSeconds = 0;
+
+let speakerEnabled = true;
+
+// ======================================================
+// RTC CONFIG
+// ======================================================
 
 const rtcConfig = {
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+    iceServers: [
+        {
+            urls: [
+                "stun:stun.l.google.com:19302",
+                "stun:stun1.l.google.com:19302"
+            ]
+        }
+    ]
 };
 
-// UI Element Mapping
-const statusText = document.getElementById("status-text");
-const remoteAudio = document.getElementById("remote-audio");
-const btnNew = document.getElementById("btn-new");
-const btnReconnect = document.getElementById("btn-reconnect");
-const callControls = document.getElementById("call-controls");
-const btnMute = document.getElementById("btn-mute");
-const btnDisconnect = document.getElementById("btn-disconnect");
+// ======================================================
+// UI ELEMENTS
+// ======================================================
 
-// 3. User Gesture Microphone Acquisition
+const statusText =
+    document.getElementById("status-text");
+
+const remoteAudio =
+    document.getElementById("remote-audio");
+
+const btnNew =
+    document.getElementById("btn-new");
+
+const btnReconnect =
+    document.getElementById("btn-reconnect");
+
+const btnMute =
+    document.getElementById("btn-mute");
+
+const btnDisconnect =
+    document.getElementById("btn-disconnect");
+
+const btnSpeaker =
+    document.getElementById("btn-speaker");
+
+const callControls =
+    document.getElementById("call-controls");
+
+const timerDisplay =
+    document.getElementById("call-timer");
+
+// ======================================================
+// TIMER
+// ======================================================
+
+function startTimer() {
+
+    clearInterval(timerInterval);
+
+    callSeconds = 0;
+
+    if (timerDisplay) {
+        timerDisplay.style.display = "block";
+    }
+
+    timerInterval = setInterval(() => {
+
+        callSeconds++;
+
+        const mins =
+            Math.floor(callSeconds / 60);
+
+        const secs =
+            callSeconds % 60;
+
+        if (timerDisplay) {
+            timerDisplay.innerText =
+                `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+        }
+
+    }, 1000);
+}
+
+function stopTimer() {
+
+    clearInterval(timerInterval);
+
+    if (timerDisplay) {
+        timerDisplay.style.display = "none";
+    }
+}
+
+// ======================================================
+// MICROPHONE ACCESS
+// ======================================================
+
 async function ensureMicrophoneAccess() {
-    if (localStream) return true; 
+
+    if (localStream) {
+        return true;
+    }
 
     try {
-        statusText.innerText = "Status: Requesting Microphone...";
-        // Explicitly requesting access inside the event execution path
-        localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+
+        statusText.innerText =
+            "Status: Requesting Microphone...";
+
+        localStream =
+            await navigator.mediaDevices.getUserMedia({
+                audio: true,
+                video: false
+            });
+
         return true;
+
     } catch (error) {
-        console.error("Microphone Access Error:", error);
-        alert("Microphone access is mandatory for voice communications. Please check site permissions.");
-        statusText.innerText = "Status: Disconnected";
+
+        console.error(error);
+
+        alert(
+            "Microphone permission is required."
+        );
+
+        statusText.innerText =
+            "Status: Disconnected";
+
         return false;
     }
 }
 
-// 4. Inbound WebSocket Message Routing System
-ws.onmessage = async (event) => {
-    const data = JSON.parse(event.data);
+// ======================================================
+// WEBSOCKET EVENTS
+// ======================================================
 
-    switch(data.type) {
+ws.onmessage = async (event) => {
+
+    const data =
+        JSON.parse(event.data);
+
+    switch (data.type) {
+
         case "waiting":
-            statusText.innerText = "Status: Waiting for a new partner...";
+
+            statusText.innerText =
+                "Status: Waiting for new caller...";
+
             break;
+
         case "waiting_reconnect":
-            statusText.innerText = "Status: Waiting for previous partner...";
+
+            statusText.innerText =
+                "Status: Waiting for previous caller...";
+
             break;
+
         case "error":
+
             alert(data.message);
-            statusText.innerText = "Status: Disconnected";
+
+            statusText.innerText =
+                "Status: Disconnected";
+
             break;
+
         case "matched":
-            statusText.innerText = "Status: Connected!";
-            currentPartnerId = data.partner_id;
-            await startCall(data.initiator);
+
+            statusText.innerText =
+                "Status: Connected";
+
+            currentPartnerId =
+                data.partner_id;
+
+            startTimer();
+
+            await startCall(
+                data.initiator
+            );
+
             break;
+
         case "offer":
         case "answer":
         case "ice_candidate":
-            // Hold data if peer connection initialization is pending
+
             if (!peerConnection) {
+
                 signalingQueue.push(data);
+
             } else {
-                await processSignalingMessage(data);
+
+                await processSignalingMessage(
+                    data
+                );
             }
+
             break;
+
         case "partner_left":
-            endCallLocally("Partner disconnected.");
+
+            endCallLocally(
+                "Partner disconnected."
+            );
+
             break;
     }
 };
 
+ws.onclose = () => {
+
+    endCallLocally(
+        "Server connection lost."
+    );
+};
+
+ws.onerror = () => {
+
+    console.log(
+        "WebSocket Error"
+    );
+};
+
+// ======================================================
+// SIGNALING
+// ======================================================
+
 async function processSignalingMessage(data) {
-    if (data.type === "offer") await handleOffer(data);
-    if (data.type === "answer") await handleAnswer(data);
-    if (data.type === "ice_candidate") await handleNewICECandidateMsg(data);
+
+    if (data.type === "offer") {
+        await handleOffer(data);
+    }
+
+    if (data.type === "answer") {
+        await handleAnswer(data);
+    }
+
+    if (data.type === "ice_candidate") {
+        await handleICE(data);
+    }
 }
 
-// 5. Asynchronous WebRTC Connection Lifecycle
+// ======================================================
+// WEBRTC
+// ======================================================
+
 async function startCall(isInitiator) {
-    callControls.style.display = "block";
-    
-    peerConnection = new RTCPeerConnection(rtcConfig);
 
-    // Mount user tracks onto the layout stream
-    localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+    callControls.style.display =
+        "block";
 
-    // Handle inbound incoming partner stream assignments
-    peerConnection.ontrack = (event) => {
-        remoteAudio.srcObject = event.streams[0];
-        // Bypassing automated block restrictions via programmatic invocation execution
-        remoteAudio.play().catch(e => console.log("Audio presentation blocked:", e));
-    };
+    peerConnection =
+        new RTCPeerConnection(
+            rtcConfig
+        );
 
-    // Forward local ice routing structural candidates to client target
-    peerConnection.onicecandidate = (event) => {
-        if (event.candidate && currentPartnerId) {
-            ws.send(JSON.stringify({
-                type: "ice_candidate",
-                target: currentPartnerId,
-                candidate: event.candidate
-            }));
-        }
-    };
+    peerConnection.onconnectionstatechange =
+        () => {
 
-    // Initiator establishes connection offer criteria setup
+            const state =
+                peerConnection.connectionState;
+
+            console.log(
+                "Connection State:",
+                state
+            );
+
+            if (
+                state === "failed" ||
+                state === "disconnected" ||
+                state === "closed"
+            ) {
+
+                endCallLocally(
+                    "Connection lost."
+                );
+            }
+        };
+
+    localStream
+        .getTracks()
+        .forEach(track => {
+
+            peerConnection.addTrack(
+                track,
+                localStream
+            );
+
+        });
+
+    peerConnection.ontrack =
+        (event) => {
+
+            remoteAudio.srcObject =
+                event.streams[0];
+
+            remoteAudio
+                .play()
+                .catch(console.error);
+        };
+
+    peerConnection.onicecandidate =
+        (event) => {
+
+            if (
+                event.candidate &&
+                currentPartnerId
+            ) {
+
+                ws.send(
+                    JSON.stringify({
+                        type: "ice_candidate",
+                        target: currentPartnerId,
+                        candidate: event.candidate
+                    })
+                );
+            }
+        };
+
     if (isInitiator) {
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        ws.send(JSON.stringify({
-            type: "offer",
-            target: currentPartnerId,
-            sdp: offer
-        }));
+
+        const offer =
+            await peerConnection.createOffer();
+
+        await peerConnection.setLocalDescription(
+            offer
+        );
+
+        ws.send(
+            JSON.stringify({
+                type: "offer",
+                target: currentPartnerId,
+                sdp: offer
+            })
+        );
     }
 
-    // Flush out lingering delayed messages from cache structure allocations
-    while (signalingQueue.length > 0) {
-        const msg = signalingQueue.shift();
-        await processSignalingMessage(msg);
+    while (
+        signalingQueue.length > 0
+    ) {
+
+        const msg =
+            signalingQueue.shift();
+
+        await processSignalingMessage(
+            msg
+        );
     }
 }
+
+// ======================================================
+// OFFER
+// ======================================================
 
 async function handleOffer(data) {
-    if (!peerConnection) return;
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-    const answer = await peerConnection.createAnswer();
-    await peerConnection.setLocalDescription(answer);
-    
-    ws.send(JSON.stringify({
-        type: "answer",
-        target: currentPartnerId,
-        sdp: answer
-    }));
+
+    await peerConnection.setRemoteDescription(
+        new RTCSessionDescription(
+            data.sdp
+        )
+    );
+
+    const answer =
+        await peerConnection.createAnswer();
+
+    await peerConnection.setLocalDescription(
+        answer
+    );
+
+    ws.send(
+        JSON.stringify({
+            type: "answer",
+            target: currentPartnerId,
+            sdp: answer
+        })
+    );
 }
+
+// ======================================================
+// ANSWER
+// ======================================================
 
 async function handleAnswer(data) {
-    if (!peerConnection) return;
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+
+    await peerConnection.setRemoteDescription(
+        new RTCSessionDescription(
+            data.sdp
+        )
+    );
 }
 
-async function handleNewICECandidateMsg(data) {
-    if (!peerConnection) return;
+// ======================================================
+// ICE
+// ======================================================
+
+async function handleICE(data) {
+
     try {
-        await peerConnection.addIceCandidate(data.candidate);
-    } catch (e) {
-        console.error("Error setting ICE candidate parameter structures:", e);
+
+        if (
+            data.candidate &&
+            peerConnection
+        ) {
+
+            await peerConnection.addIceCandidate(
+                new RTCIceCandidate(
+                    data.candidate
+                )
+            );
+        }
+
+    } catch (error) {
+
+        console.error(
+            "ICE Error:",
+            error
+        );
     }
 }
 
-// 6. Action Button Interactive Listeners
+// ======================================================
+// BUTTONS
+// ======================================================
+
 btnNew.onclick = async () => {
-    if (await ensureMicrophoneAccess()) {
-        // CLEANUP: Drop local active session traces before pushing up connection updates
-        if (peerConnection) {
-            peerConnection.close();
-            peerConnection = null;
-        }
-        signalingQueue = [];
-        remoteAudio.srcObject = null;
-        
-        ws.send(JSON.stringify({ type: "connect_new" }));
+
+    if (
+        await ensureMicrophoneAccess()
+    ) {
+
+        cleanupBeforeSearch();
+
+        ws.send(
+            JSON.stringify({
+                type: "connect_new"
+            })
+        );
     }
 };
 
 btnReconnect.onclick = async () => {
-    if (await ensureMicrophoneAccess()) {
-        if (peerConnection) {
-            peerConnection.close();
-            peerConnection = null;
-        }
-        signalingQueue = [];
-        remoteAudio.srcObject = null;
 
-        ws.send(JSON.stringify({ type: "reconnect" }));
+    if (
+        await ensureMicrophoneAccess()
+    ) {
+
+        cleanupBeforeSearch();
+
+        ws.send(
+            JSON.stringify({
+                type: "reconnect"
+            })
+        );
     }
 };
 
 btnMute.onclick = () => {
-    if (localStream) {
-        isMuted = !isMuted;
-        localStream.getAudioTracks()[0].enabled = !isMuted;
-        btnMute.innerText = isMuted ? "Unmute Mic" : "Mute Mic";
-    }
+
+    if (!localStream) return;
+
+    isMuted = !isMuted;
+
+    localStream
+        .getAudioTracks()[0]
+        .enabled = !isMuted;
+
+    btnMute.innerText =
+        isMuted
+            ? "Unmute Mic"
+            : "Mute Mic";
+};
+
+btnSpeaker.onclick = () => {
+
+    speakerEnabled =
+        !speakerEnabled;
+
+    remoteAudio.muted =
+        !speakerEnabled;
+
+    btnSpeaker.innerText =
+        speakerEnabled
+            ? "Speaker"
+            : "Speaker Off";
 };
 
 btnDisconnect.onclick = () => {
-    ws.send(JSON.stringify({ type: "hangup" }));
-    endCallLocally("You disconnected.");
+
+    if (
+        ws.readyState ===
+        WebSocket.OPEN
+    ) {
+
+        ws.send(
+            JSON.stringify({
+                type: "hangup"
+            })
+        );
+    }
+
+    endCallLocally(
+        "You disconnected."
+    );
 };
 
-function endCallLocally(message) {
+// ======================================================
+// CLEANUP
+// ======================================================
+
+function cleanupBeforeSearch() {
+
+    stopTimer();
+
     if (peerConnection) {
+
         peerConnection.close();
+
         peerConnection = null;
     }
-    currentPartnerId = null;
-    callControls.style.display = "none";
-    statusText.innerText = "Status: " + message;
-    remoteAudio.srcObject = null;
+
     signalingQueue = [];
-    // Note: localStream remains active so subsequent matches don't prompt UI access popups repeatedly
+
+    remoteAudio.srcObject = null;
+
+    currentPartnerId = null;
+
+    callControls.style.display =
+        "none";
+}
+
+function endCallLocally(message) {
+
+    stopTimer();
+
+    if (peerConnection) {
+
+        peerConnection.close();
+
+        peerConnection = null;
+    }
+
+    currentPartnerId = null;
+
+    remoteAudio.srcObject = null;
+
+    signalingQueue = [];
+
+    callControls.style.display =
+        "none";
+
+    statusText.innerText =
+        "Status: " + message;
 }
