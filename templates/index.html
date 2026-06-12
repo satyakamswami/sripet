@@ -3,27 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audio Chat | Satyakam Swami</title>
+    <title>Stranger Audio Chat</title>
+
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <div class="container">
-        <h1>Stranger Audio Chat</h1>
-        <p id="status-text">Status: Disconnected</p>
 
-        <audio id="remote-audio" autoplay playsinline></audio>
+    <div class="container">
+
+        <h1>🎧 Stranger Audio Chat</h1>
+
+        <p id="status-text">
+            Status: Disconnected
+        </p>
+
+        <p id="call-timer" style="display:none;">
+            00:00
+        </p>
+
+        <audio
+            id="remote-audio"
+            autoplay
+            playsinline>
+        </audio>
 
         <div class="controls">
-            <button id="btn-new">Connect to New Caller</button>
-            <button id="btn-reconnect">Reconnect to Previous</button>
+
+            <button id="btn-new">
+                Connect New Caller
+            </button>
+
+            <button id="btn-reconnect">
+                Reconnect To Last Caller
+            </button>
+
         </div>
 
-        <div class="call-controls" id="call-controls" style="display: none;">
-            <button id="btn-mute">Mute Mic</button>
-            <button id="btn-disconnect">Disconnect</button>
+        <div
+            id="call-controls"
+            class="call-controls"
+            style="display:none;">
+
+            <button id="btn-mute">
+                Mute Mic
+            </button>
+
+            <button id="btn-speaker">
+                Speaker
+            </button>
+
+            <button id="btn-disconnect">
+                End Call
+            </button>
+
         </div>
+
     </div>
 
     <script src="/static/script.js"></script>
+
 </body>
 </html>
