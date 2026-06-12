@@ -1,104 +1,101 @@
-// Generate a unique ID for this user
-const clientId = Math.random().toString(36).substring(2, 15);
+// Satyakam Swami - WebRTC Frontend Logic
 
-// Connect to the WebSocket automatically (handles both standard and secure connections)
-const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-const ws = new WebSocket(`${wsProtocol}//${window.location.host}/ws/${clientId}`);
+// 1. Generate or retrieve UUID for the user
+let myId = localStorage.getItem('chat_uuid');
+if (!myId) {
+    myId = crypto.randomUUID();
+    localStorage.setItem('chat_uuid', myId);
+}
 
-// WebRTC variables
+// 2. Setup WebSocket and Variables
+const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+const ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws/${myId}`);
+
 let peerConnection;
 let localStream;
 let currentPartnerId = null;
+let isMuted = false;
 
-// Free Google STUN server to help phones find each other over the internet
-const configuration = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+// FIX: A queue to hold messages if they arrive before the mic is ready
+let signalingQueue = []; 
+
+const rtcConfig = {
+    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+};
 
 // UI Elements
-const statusText = document.getElementById('statusText');
-const remoteAudio = document.getElementById('remoteAudio');
-const btnNew = document.getElementById('btnNew');
-const btnReconnect = document.getElementById('btnReconnect');
-const btnHangup = document.getElementById('btnHangup');
+const statusText = document.getElementById("status-text");
+const remoteAudio = document.getElementById("remote-audio");
+const btnNew = document.getElementById("btn-new");
+const btnReconnect = document.getElementById("btn-reconnect");
+const callControls = document.getElementById("call-controls");
+const btnMute = document.getElementById("btn-mute");
+const btnDisconnect = document.getElementById("btn-disconnect");
 
-// 1. Get Microphone Access immediately
-navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-    .then(stream => {
-        localStream = stream;
-        statusText.innerText = "Microphone active. Ready to connect!";
-        btnNew.disabled = false;
-        btnReconnect.disabled = false;
-    })
-    .catch(err => {
-        statusText.innerText = "Microphone access denied! Please enable it.";
-        console.error("Mic Error:", err);
-    });
-
-// 2. Handle incoming WebSocket messages from FastAPI
+// 3. WebSocket Message Handling
 ws.onmessage = async (event) => {
-    const msg = JSON.parse(event.data);
+    const data = JSON.parse(event.data);
 
-    if (msg.type === "waiting") {
-        statusText.innerText = "Waiting for a random partner...";
-        updateButtons("waiting");
-    } 
-    else if (msg.type === "waiting_reconnect") {
-        statusText.innerText = "Waiting for previous partner...";
-        updateButtons("waiting");
-    } 
-    else if (msg.type === "matched") {
-        currentPartnerId = msg.partner_id;
-        statusText.innerText = "Matched! Connecting audio...";
-        updateButtons("connected");
-        createPeerConnection();
-
-        // The "initiator" starts the WebRTC handshake
-        if (msg.initiator) {
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
-            // Send offer through your FastAPI server, including our ID as 'sender'
-            ws.send(JSON.stringify({ type: "offer", target: currentPartnerId, sender: clientId, sdp: offer }));
-        }
-    } 
-    else if (msg.type === "offer") {
-        currentPartnerId = msg.sender;
-        createPeerConnection();
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-        const answer = await peerConnection.createAnswer();
-        await peerConnection.setLocalDescription(answer);
-        ws.send(JSON.stringify({ type: "answer", target: currentPartnerId, sdp: answer }));
-    } 
-    else if (msg.type === "answer") {
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-        statusText.innerText = "Connected! You can talk now.";
-    } 
-    else if (msg.type === "ice_candidate") {
-        try {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(msg.candidate));
-        } catch (e) {
-            console.error("Error adding ice candidate", e);
-        }
-    } 
-    else if (msg.type === "partner_left" || msg.type === "error") {
-        statusText.innerText = msg.type === "error" ? msg.message : "Partner disconnected.";
-        cleanupConnection();
-        updateButtons("ready");
+    switch(data.type) {
+        case "waiting":
+            statusText.innerText = "Status: Waiting for a new partner...";
+            break;
+        case "waiting_reconnect":
+            statusText.innerText = "Status: Waiting for previous partner...";
+            break;
+        case "error":
+            alert(data.message);
+            statusText.innerText = "Status: Disconnected";
+            break;
+        case "matched":
+            statusText.innerText = "Status: Connected!";
+            currentPartnerId = data.partner_id;
+            await startCall(data.initiator);
+            break;
+        case "offer":
+        case "answer":
+        case "ice_candidate":
+            // FIX: If the connection isn't ready yet, queue the message!
+            if (!peerConnection) {
+                console.log("Mic not ready yet, queuing message:", data.type);
+                signalingQueue.push(data);
+            } else {
+                await processSignalingMessage(data);
+            }
+            break;
+        case "partner_left":
+            endCallLocally("Partner disconnected.");
+            break;
     }
 };
 
-// 3. WebRTC Peer Connection Setup
-function createPeerConnection() {
-    if (peerConnection) peerConnection.close();
-    peerConnection = new RTCPeerConnection(configuration);
+// Helper function to process the WebRTC messages
+async function processSignalingMessage(data) {
+    if (data.type === "offer") await handleOffer(data);
+    if (data.type === "answer") await handleAnswer(data);
+    if (data.type === "ice_candidate") await handleNewICECandidateMsg(data);
+}
 
-    // Add our microphone audio to the connection
+// 4. WebRTC Call Logic
+async function startCall(isInitiator) {
+    callControls.style.display = "block";
+    
+    // Get microphone access (This is the step that takes time!)
+    localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    
+    peerConnection = new RTCPeerConnection(rtcConfig);
+
+    // Add our audio to the connection
     localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
 
-    // When we receive the partner's audio, play it in the <audio> tag
+    // When we get their audio, play it
     peerConnection.ontrack = (event) => {
         remoteAudio.srcObject = event.streams[0];
+        // FIX: Force the browser to play the audio to bypass Autoplay blocks
+        remoteAudio.play().catch(e => console.log("Audio play blocked by browser:", e));
     };
 
-    // Send network routing data (ICE) to the partner via FastAPI
+    // Send routing info (ICE) to the other person
     peerConnection.onicecandidate = (event) => {
         if (event.candidate) {
             ws.send(JSON.stringify({
@@ -108,41 +105,83 @@ function createPeerConnection() {
             }));
         }
     };
+
+    // If we are the ones who were in the queue first, we send the Offer
+    if (isInitiator) {
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        ws.send(JSON.stringify({
+            type: "offer",
+            target: currentPartnerId,
+            sdp: offer
+        }));
+    }
+
+    // FIX: Now that our mic is ON and peerConnection is ready, process any queued messages!
+    while (signalingQueue.length > 0) {
+        const msg = signalingQueue.shift();
+        console.log("Processing queued message:", msg.type);
+        await processSignalingMessage(msg);
+    }
 }
 
-// 4. Teardown
-function cleanupConnection() {
+async function handleOffer(data) {
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+    
+    ws.send(JSON.stringify({
+        type: "answer",
+        target: currentPartnerId,
+        sdp: answer
+    }));
+}
+
+async function handleAnswer(data) {
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+}
+
+async function handleNewICECandidateMsg(data) {
+    try {
+        await peerConnection.addIceCandidate(data.candidate);
+    } catch (e) {
+        console.error("Error adding ICE candidate", e);
+    }
+}
+
+// 5. Button Listeners
+btnNew.onclick = () => {
+    ws.send(JSON.stringify({ type: "connect_new" }));
+};
+
+btnReconnect.onclick = () => {
+    ws.send(JSON.stringify({ type: "reconnect" }));
+};
+
+btnMute.onclick = () => {
+    if (localStream) {
+        isMuted = !isMuted;
+        localStream.getAudioTracks()[0].enabled = !isMuted;
+        btnMute.innerText = isMuted ? "Unmute Mic" : "Mute Mic";
+    }
+};
+
+btnDisconnect.onclick = () => {
+    ws.send(JSON.stringify({ type: "hangup" }));
+    endCallLocally("You disconnected.");
+};
+
+function endCallLocally(message) {
     if (peerConnection) {
         peerConnection.close();
         peerConnection = null;
     }
-    remoteAudio.srcObject = null;
-    currentPartnerId = null;
-}
-
-// 5. Button Logic (Sending commands to FastAPI)
-btnNew.onclick = () => ws.send(JSON.stringify({ type: "connect_new" }));
-btnReconnect.onclick = () => ws.send(JSON.stringify({ type: "reconnect" }));
-btnHangup.onclick = () => {
-    ws.send(JSON.stringify({ type: "hangup" }));
-    cleanupConnection();
-    updateButtons("ready");
-    statusText.innerText = "You hung up. Ready for a new call.";
-};
-
-// Helper to manage UI state
-function updateButtons(state) {
-    if (state === "ready") {
-        btnNew.disabled = false;
-        btnReconnect.disabled = false;
-        btnHangup.disabled = true;
-    } else if (state === "waiting") {
-        btnNew.disabled = true;
-        btnReconnect.disabled = true;
-        btnHangup.disabled = false; // Allow cancelling wait
-    } else if (state === "connected") {
-        btnNew.disabled = true;
-        btnReconnect.disabled = true;
-        btnHangup.disabled = false;
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
     }
+    currentPartnerId = null;
+    callControls.style.display = "none";
+    statusText.innerText = "Status: " + message;
+    remoteAudio.srcObject = null;
+    signalingQueue = []; // Clear the queue on disconnect
 }
