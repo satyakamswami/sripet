@@ -3,24 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Live Audio Chat</title>
+    <title>Audio Chat | Satyakam Swami</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
     <div class="container">
-        <h1>Audio Chat Room</h1>
-        
-        <div class="status-box">
-            <p id="statusText">Requesting microphone access...</p>
-        </div>
+        <h1>Stranger Audio Chat</h1>
+        <p id="status-text">Status: Disconnected</p>
+
+        <audio id="remote-audio" autoplay playsinline></audio>
 
         <div class="controls">
-            <button id="btnNew" class="btn-primary" disabled>Find Partner</button>
-            <button id="btnReconnect" class="btn-secondary" disabled>Reconnect</button>
-            <button id="btnHangup" class="btn-danger" disabled>Hang Up</button>
+            <button id="btn-new">Connect to New Caller</button>
+            <button id="btn-reconnect">Reconnect to Previous</button>
         </div>
 
-        <audio id="remoteAudio" autoplay playsinline></audio>
+        <div class="call-controls" id="call-controls" style="display: none;">
+            <button id="btn-mute">Mute Mic</button>
+            <button id="btn-disconnect">Disconnect</button>
+        </div>
     </div>
 
     <script src="/static/script.js"></script>
