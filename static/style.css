@@ -1,8 +1,12 @@
-body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background-color: #121212;
-    color: #ffffff;
+* {
+    box-sizing: border-box;
     margin: 0;
+    padding: 0;
+    font-family: Arial, sans-serif;
+}
+
+body {
+    background-color: #f4f4f9;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -10,54 +14,51 @@ body {
 }
 
 .container {
-    background: #1e1e1e;
+    background: white;
     padding: 30px;
-    border-radius: 12px;
-    box-shadow: 0 8px 16px rgba(0,0,0,0.5);
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
     text-align: center;
-    width: 90%;
-    max-width: 400px;
+    width: 350px;
 }
 
 h1 {
-    margin-top: 0;
-    color: #4CAF50;
+    font-size: 22px;
+    margin-bottom: 10px;
+    color: #333;
 }
 
-.status-box {
-    background: #2a2a2a;
-    padding: 15px;
-    border-radius: 8px;
-    margin-bottom: 25px;
+#status-text {
+    margin-bottom: 20px;
+    color: #666;
     font-weight: bold;
-    min-height: 20px;
-}
-
-.controls {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
 }
 
 button {
-    padding: 15px;
+    width: 100%;
+    padding: 10px;
+    margin: 5px 0;
     border: none;
-    border-radius: 8px;
-    font-size: 16px;
-    font-weight: bold;
+    border-radius: 5px;
     cursor: pointer;
-    transition: opacity 0.2s;
+    font-size: 16px;
+    background-color: #007bff;
+    color: white;
+    transition: 0.3s;
 }
 
-button:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
+button:hover {
+    background-color: #0056b3;
 }
 
-button:active:not(:disabled) {
-    opacity: 0.8;
+#btn-disconnect {
+    background-color: #dc3545;
 }
 
-.btn-primary { background: #4CAF50; color: white; }
-.btn-secondary { background: #2196F3; color: white; }
-.btn-danger { background: #f44336; color: white; }
+#btn-disconnect:hover {
+    background-color: #a71d2a;
+}
+
+.controls, .call-controls {
+    margin-top: 15px;
+}
