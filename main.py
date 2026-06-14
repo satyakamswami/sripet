@@ -1,4 +1,3 @@
-# Production-Ready Backend built by Satyakam Swami - Enhanced Edition
 import json
 import logging
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
