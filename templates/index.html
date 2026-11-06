@@ -3,36 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audio Chat | Satyakam Swami</title>
-    <link rel="stylesheet" href="../static/style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <title>Sripet — 1-on-1 Audio</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <div class="avatar-container">
-            <div id="pulse-ring" class="pulse-ring"></div>
-            <div class="avatar">
-                <i class="fa-solid fa-microphone-lines"></i>
+    <div class="app-container">
+        <!-- Top Minimal Nav -->
+        <header class="app-header">
+            <div class="logo">SRIPET<span>.</span></div>
+            <div id="timer-display" class="timer-badge" style="display: none;">
+                <span id="timer-text">10:00</span>
             </div>
-        </div>
+        </header>
 
-        <h1>Stranger Audio Chat</h1>
-        <p id="status-text" class="status-badge">Status: Disconnected</p>
+        <!-- Center Stage -->
+        <main class="stage">
+            <div class="status-wrapper">
+                <div id="pulse-ring" class="pulse-ring"></div>
+                <div class="status-indicator"></div>
+            </div>
+            
+            <h1 id="status-text" class="status-title">Ready to connect</h1>
+            <p class="status-subtitle">Secure, zero-login peer-to-peer audio stream.</p>
+        </main>
 
         <audio id="remote-audio" autoplay playsinline></audio>
 
-        <div class="controls" id="main-controls">
-            <button id="btn-new" class="btn-primary"><i class="fa-solid fa-shuffle"></i> Find Partner</button>
-            <button id="btn-reconnect" class="btn-secondary"><i class="fa-solid fa-clock-rotate-left"></i> Reconnect</button>
-        </div>
+        <!-- Action Controls -->
+        <footer class="action-bar">
+            <div class="controls" id="main-controls">
+                <button id="btn-new" class="btn btn-primary">Start Call</button>
+                <button id="btn-reconnect" class="btn btn-secondary">Reconnect Last</button>
+            </div>
 
-        <div class="call-controls" id="call-controls" style="display: none;">
-            <button id="btn-mute" class="btn-warning"><i class="fa-solid fa-microphone"></i> Mute</button>
-            <button id="btn-disconnect" class="btn-danger"><i class="fa-solid fa-phone-slash"></i> Disconnect</button>
-        </div>
+            <div class="call-controls" id="call-controls" style="display: none;">
+                <button id="btn-mute" class="btn btn-secondary">Mute</button>
+                <button id="btn-disconnect" class="btn btn-danger">Disconnect</button>
+            </div>
+        </footer>
     </div>
 
-    <script src="../static/script.js"></script>
+    <script src="/static/script.js"></script>
 </body>
 </html>
