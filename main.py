@@ -1,4 +1,4 @@
-# Production-Ready Backend built by Satyakam Swami - Monochromatic Edition with 10-Min Limit
+# Production-Ready Backend built by Satyakam Swami - Enhanced Edition with 10-Min Timer
 import json
 import logging
 import asyncio
@@ -13,7 +13,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("AudioChatServer")
 
-app = FastAPI(title="Sripet Audio Chat Server 2.0")
+app = FastAPI(title="Sripet Audio Chat Signaling Server 2.0")
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
@@ -130,6 +130,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     manager.history[valid_partner] = client_id
 
                     logger.info(f"Match Found: {client_id} <---> {valid_partner}")
+
                     manager.start_call_timer(client_id, valid_partner)
 
                     await manager.send_message(client_id, {"type": "matched", "partner_id": valid_partner, "initiator": True})
@@ -150,6 +151,7 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     manager.current_pairs[last_partner] = client_id
                     
                     logger.info(f"Reconnected: {client_id} <---> {last_partner}")
+                    
                     manager.start_call_timer(client_id, last_partner)
                     
                     await manager.send_message(client_id, {"type": "matched", "partner_id": last_partner, "initiator": True})
