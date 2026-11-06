@@ -1,10 +1,8 @@
-// Production-Ready Frontend Logic built by Satyakam Swami - Enhanced Edition 
+// Production-Ready Frontend Logic built by Satyakam Swami - Monochromatic Edition
 
-// 1. Generate or retrieve a persistent unique client ID
 let myId = localStorage.getItem('chat_uuid') || crypto.randomUUID();
 localStorage.setItem('chat_uuid', myId);
 
-// 2. Establish Secure/Standard WebSocket Communication Pipeline
 const wsProtocol = window.location.protocol === "https:" ? "wss" : "ws";
 let ws = new WebSocket(`${wsProtocol}://${window.location.host}/ws/${myId}`);
 
@@ -14,12 +12,16 @@ let currentPartnerId = null;
 let isMuted = false;
 let signalingQueue = []; 
 
+let callTimerInterval = null;
+let secondsRemaining = 600;
+
 const rtcConfig = {
     iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
 };
 
-// UI Element Mapping
 const statusText = document.getElementById("status-text");
+const timerDisplay = document.getElementById("timer-display");
+const timerText = document.getElementById("timer-text");
 const remoteAudio = document.getElementById("remote-audio");
 const btnNew = document.getElementById("btn-new");
 const btnReconnect = document.getElementById("btn-reconnect");
@@ -29,53 +31,86 @@ const btnMute = document.getElementById("btn-mute");
 const btnDisconnect = document.getElementById("btn-disconnect");
 const pulseRing = document.getElementById("pulse-ring");
 
-// Helper function to update UI seamlessly
 function updateUI(status, showCallControls, animatePulse) {
-    statusText.innerHTML = status;
-    callControls.style.display = showCallControls ? "block" : "none";
-    mainControls.style.display = showCallControls ? "none" : "block";
+    statusText.innerText = status;
+    callControls.style.display = showCallControls ? "flex" : "none";
+    mainControls.style.display = showCallControls ? "none" : "flex";
     
     if (animatePulse) {
         pulseRing.classList.add("active");
     } else {
         pulseRing.classList.remove("active");
     }
+
+    if (!showCallControls) {
+        stopCallTimer();
+    }
 }
 
-// 3. User Gesture Microphone Acquisition
+function startCallTimer() {
+    stopCallTimer();
+    secondsRemaining = 600;
+    timerDisplay.style.display = "inline-block";
+    updateTimerText();
+
+    callTimerInterval = setInterval(() => {
+        secondsRemaining--;
+        updateTimerText();
+
+        if (secondsRemaining <= 0) {
+            stopCallTimer();
+            endCallLocally("10-minute limit reached");
+        }
+    }, 1000);
+}
+
+function stopCallTimer() {
+    if (callTimerInterval) {
+        clearInterval(callTimerInterval);
+        callTimerInterval = null;
+    }
+    timerDisplay.style.display = "none";
+}
+
+function updateTimerText() {
+    const mins = Math.floor(secondsRemaining / 60);
+    const secs = secondsRemaining % 60;
+    timerText.textContent = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
 async function ensureMicrophoneAccess() {
     if (localStream) return true; 
 
     try {
-        updateUI("<i class='fa-solid fa-spinner fa-spin'></i> Requesting Microphone...", false, false);
+        updateUI("Requesting mic...", false, false);
         localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
         return true;
     } catch (error) {
         console.error("Microphone Access Error:", error);
-        alert("Microphone access is mandatory. Please check browser permissions.");
+        alert("Microphone access is required.");
         updateUI("Disconnected", false, false);
         return false;
     }
 }
 
-// 4. Inbound WebSocket Message Routing System
 ws.onmessage = async (event) => {
     const data = JSON.parse(event.data);
 
     switch(data.type) {
         case "waiting":
-            updateUI("<i class='fa-solid fa-satellite-dish fa-fade'></i> Searching for partner...", false, true);
+            updateUI("Searching for partner...", false, true);
             break;
         case "waiting_reconnect":
-            updateUI("<i class='fa-solid fa-clock-rotate-left fa-spin'></i> Awaiting previous partner...", false, true);
+            updateUI("Awaiting previous partner...", false, true);
             break;
         case "error":
             alert(data.message);
-            updateUI("Disconnected", false, false);
+            updateUI("Ready to connect", false, false);
             break;
         case "matched":
-            updateUI("<i class='fa-solid fa-link'></i> Connected!", true, true);
+            updateUI("Connected", true, true);
             currentPartnerId = data.partner_id;
+            startCallTimer();
             await startCall(data.initiator);
             break;
         case "offer":
@@ -88,7 +123,10 @@ ws.onmessage = async (event) => {
             }
             break;
         case "partner_left":
-            endCallLocally("Partner disconnected.");
+            endCallLocally("Partner disconnected");
+            break;
+        case "time_limit_reached":
+            endCallLocally("Call ended (10-min limit)");
             break;
     }
 };
@@ -99,15 +137,13 @@ async function processSignalingMessage(data) {
     if (data.type === "ice_candidate") await handleNewICECandidateMsg(data);
 }
 
-// 5. Asynchronous WebRTC Connection Lifecycle
 async function startCall(isInitiator) {
     peerConnection = new RTCPeerConnection(rtcConfig);
 
-    // CRITICAL IMPROVEMENT: Monitor connection drops
     peerConnection.oniceconnectionstatechange = () => {
         if (peerConnection.iceConnectionState === "disconnected" || 
             peerConnection.iceConnectionState === "failed") {
-            endCallLocally("Connection lost.");
+            endCallLocally("Connection lost");
         }
     };
 
@@ -160,7 +196,6 @@ async function handleNewICECandidateMsg(data) {
     }
 }
 
-// 6. Action Button Interactive Listeners
 btnNew.onclick = async () => {
     if (await ensureMicrophoneAccess()) {
         resetConnection();
@@ -179,14 +214,13 @@ btnMute.onclick = () => {
     if (localStream) {
         isMuted = !isMuted;
         localStream.getAudioTracks()[0].enabled = !isMuted;
-        btnMute.innerHTML = isMuted ? "<i class='fa-solid fa-microphone-slash'></i> Unmute" : "<i class='fa-solid fa-microphone'></i> Mute";
-        btnMute.className = isMuted ? "btn-secondary" : "btn-warning";
+        btnMute.innerText = isMuted ? "Unmute" : "Mute";
     }
 };
 
 btnDisconnect.onclick = () => {
     ws.send(JSON.stringify({ type: "hangup" }));
-    endCallLocally("You disconnected.");
+    endCallLocally("Disconnected");
 };
 
 function resetConnection() {
